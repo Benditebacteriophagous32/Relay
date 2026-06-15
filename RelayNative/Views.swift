@@ -1002,7 +1002,9 @@ private struct Bubble: View {
                 Button { store.toggleStar(message.id) } label: {
                     Label(store.isStarred(message.id) ? "Unsave" : "Save", systemImage: store.isStarred(message.id) ? "bookmark.slash" : "bookmark")
                 }
-                if !message.hasMedia, !message.text.isEmpty {
+                // Translation is macOS 15+ (Apple's Translation framework) — hide these
+                // entirely on Ventura/Sonoma so there are no dead menu items.
+                if #available(macOS 15.0, *), !message.hasMedia, !message.text.isEmpty {
                     Divider()
                     if store.isTranslated(message.id) {
                         Button { store.removeTranslation(message.id) } label: { Label("Show original", systemImage: "character.bubble") }
@@ -2008,15 +2010,26 @@ private struct Composer: View {
     }
 
     private var inputPill: some View {
-        TextField(store.stagedImages.isEmpty ? "Message" : "Add a caption…", text: $draft, axis: .vertical)
+        composerField
             .textFieldStyle(.plain)
-            .lineLimit(1...6)
             .focused($inputFocused)
             .padding(.horizontal, 16).padding(.vertical, 11)
             .relayGlass(in: Capsule())
             .contentShape(Capsule())
             .onTapGesture { inputFocused = true }   // click anywhere in the bar to type
             .modifier(ReturnToSend(enterToSend: enterToSend, canSend: canSend, onSend: onSend))
+    }
+
+    // macOS 14+ gets a growing multi-line field (Return handled by onKeyPress). Ventura uses
+    // a single-line field where onSubmit fires reliably on Return — so "Return to send" always
+    // works there (a multi-line vertical field can swallow Return into a newline on 13).
+    @ViewBuilder private var composerField: some View {
+        let placeholder = store.stagedImages.isEmpty ? "Message" : "Add a caption…"
+        if #available(macOS 14.0, *) {
+            TextField(placeholder, text: $draft, axis: .vertical).lineLimit(1...6)
+        } else {
+            TextField(placeholder, text: $draft)
+        }
     }
 
     @ViewBuilder private var trailingButton: some View {
