@@ -1,76 +1,57 @@
 # Signing & releasing Relay
 
-Relay uses **local** notifications (`UNUserNotificationCenter`), so it needs **no**
-push entitlement and **no** provisioning profile. Signing exists only to give the
-app a stable, trusted identity.
+Relay is distributed like most open-source Mac apps: **ad-hoc signed, not notarized,
+tied to no Apple Developer account.** Users approve it once on first launch (System
+Settings → Privacy & Security → "Open Anyway"). No paid membership, certificates, or
+notarization needed. Auto-update still works — Sparkle verifies its own EdDSA signature
+on the appcast, independent of Apple.
 
-## Use it now (no Developer ID needed)
-Builds the universal Go helper + the app, signs with your *Apple Development* cert,
-installs to `/Applications`, runs:
+## Run locally
 ```bash
 scripts/run-native.sh
 ```
-Grant **Notifications**/**Microphone** on first launch. Because it's signed with a
-stable identity, those permissions persist across rebuilds. This is all you need to
-start using Relay yourself.
+Builds the universal Go helper + app, signs locally, installs to `/Applications`, runs.
 
-> Set `DEVELOPMENT_TEAM` in `project.yml` to your own Apple Developer team id first.
-
-## Make a notarized, shareable build
-One-time setup (needs your own Apple Developer account + paid membership):
-
-1. **Create a Developer ID Application certificate**
-   Xcode → Settings → Accounts → select your team → *Manage Certificates…*
-   → **＋** → **Developer ID Application**.
-
-2. **Store notary credentials** as a keychain profile. Generate an app-specific
-   password at <https://appleid.apple.com> → Sign-In & Security → App-Specific
-   Passwords, then:
-   ```bash
-   xcrun notarytool store-credentials relay-notary \
-     --apple-id "<your-apple-id-email>" --team-id "<YOUR_TEAM_ID>" --password "<app-specific-password>"
-   ```
-   (The release script reads the team id from its `TEAM` variable — set it to your own.)
-
-Then, any time you want a distributable build:
+## Cut a release
 ```bash
 scripts/release.sh
 ```
-It builds the universal Go helper + app → bundles + signs with Developer ID + hardened
-runtime + secure timestamp → notarizes (waits for Apple) → staples → outputs a notarized
-`dist/Relay.app`, a drag-to-Applications `dist/Relay.dmg`, and `dist/Relay.zip` that run
-warning-free on any Mac. Publish with `gh release create` (the script prints the command).
+Builds the universal (Intel + Apple Silicon) helper + app, **ad-hoc signs** it, and
+produces:
+- `dist/Relay.dmg` — the drag-to-Applications download for the Releases page
+- `dist/Relay.zip` — the Sparkle update artifact
+- `dist/appcast.xml` — the EdDSA-signed update feed
+
+It prints the exact `gh release create` command, e.g.:
+```bash
+gh release create v1.0 dist/Relay.dmg dist/Relay.zip dist/appcast.xml \
+  --title "Relay v1.0" --notes "…"
+```
+The tag **must** be `v<MARKETING_VERSION>` so the appcast's download URLs resolve.
+Bump `MARKETING_VERSION` **and** `CURRENT_PROJECT_VERSION` in `project.yml` before each
+release (Sparkle compares `CURRENT_PROJECT_VERSION` to decide what's newer).
 
 ## Auto-update (Sparkle)
 
-Relay ships with [Sparkle](https://sparkle-project.org): it checks a signed `appcast.xml`
-on GitHub Releases in the background and offers a one-click in-app update — users never
-visit GitHub. Wiring is already done (SPM dependency + `SUFeedURL`/`SUPublicEDKey` in the
-generated `Info.plist`, pointing at `releases/latest/download/appcast.xml`).
+Wiring is done: the Sparkle SPM dependency plus `SUFeedURL`/`SUPublicEDKey` in the
+generated `Info.plist`, pointing at `releases/latest/download/appcast.xml`. Updates are
+**manual** — the user clicks "Download the Latest Version" (Settings) or "Check for
+Updates…" (menu); there are no background checks.
 
-**One-time:** the EdDSA signing keypair is generated with Sparkle's `generate_keys`
-(private key stays in your login Keychain; the public key is `SUPublicEDKey` in
-`project.yml`). The Sparkle CLI tools (`generate_keys`, `generate_appcast`, `sign_update`)
-come from the Sparkle release tarball — `release.sh` looks for them in `.sparkle-tools/`
-(git-ignored) or the resolved SPM artifacts. To (re)fetch:
+The EdDSA signing keypair was made once with Sparkle's `generate_keys` (private key in
+your login Keychain; public key is `SUPublicEDKey` in `project.yml`). `release.sh` signs
+the appcast with `generate_appcast`, looking for the Sparkle CLI tools in `.sparkle-tools/`
+(git-ignored) or the resolved SPM artifacts. To (re)fetch the tools:
 ```bash
 TAG=$(gh release view --repo sparkle-project/Sparkle --json tagName -q .tagName)
 mkdir -p .sparkle-tools && cd .sparkle-tools
 curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$TAG/Sparkle-$TAG.tar.xz" | tar -xJ
 ```
 
-**Each release:**
-1. Bump `MARKETING_VERSION` **and** `CURRENT_PROJECT_VERSION` in `project.yml`
-   (Sparkle compares `CURRENT_PROJECT_VERSION` to decide what's newer).
-2. `scripts/release.sh` → produces `dist/Relay.dmg`, `dist/Relay.zip`, and a signed
-   `dist/appcast.xml`, and prints the exact `gh release create vX …` command.
-3. Run that command. The tag **must** be `v<MARKETING_VERSION>` so the appcast's
-   download URLs resolve. Uploading `appcast.xml` to the latest release is what triggers
-   everyone's auto-update.
-
 ## Notes
-- `project.yml` uses **Automatic** signing for the Xcode IDE (Run just works when you're
-  signed into your Developer account). The release script re-signs with explicit
-  `codesign`, so it never depends on provisioning profiles.
+- The project is **ad-hoc signed** (`CODE_SIGN_IDENTITY "-"`, no team). To run from Xcode
+  with your own account instead, set `CODE_SIGN_STYLE: Automatic` + your team in `project.yml`.
 - Entitlements (`RelayNative/RelayNative.entitlements`) cover hardened-runtime JIT +
-  microphone access; the app is not sandboxed (direct distribution only).
+  microphone; the app is not sandboxed (direct distribution only).
+- Want warning-free installs later? You can add a paid Developer ID + notarization step
+  on top of this without changing anything else.

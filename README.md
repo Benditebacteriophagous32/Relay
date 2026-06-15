@@ -35,15 +35,23 @@ the license).
 
 ## Install
 
-1. Download the latest `Relay.zip` from the [**Releases**](../../releases) page.
-2. Unzip and drag **Relay.app** to `/Applications`.
-3. Open it. The build is Apple **notarized**, so it runs without Gatekeeper
-   warnings.
-4. On first launch you'll get a short welcome + a Facebook sign-in window. Log in
-   normally (password, 2FA, checkpoints all work). That's it.
+1. Download **`Relay.dmg`** from the [**Releases**](../../releases) page.
+2. Open it and drag **Relay.app** to **Applications**.
+3. **First launch — approve it once.** Relay is a free open-source app, not signed
+   through Apple's paid program, so macOS asks you to confirm it:
+   - **macOS 15 / 26:** double-click Relay → in the dialog click **Done**, then open
+     **System Settings → Privacy & Security**, scroll down and click **“Open Anyway”** →
+     **Open**.
+   - **macOS 13 / 14 (incl. Intel):** **right-click** (Control-click) Relay.app →
+     **Open** → **Open**.
 
-Relay keeps itself up to date — when a new version ships you'll see an **Update**
-prompt inside the app; one click installs it and relaunches. (Powered by Sparkle.)
+   You only do this once; afterwards it opens normally.
+4. You'll get a short welcome + a Facebook sign-in window. Log in normally (password,
+   2FA, checkpoints all work). That's it.
+
+When a new version ships, **Settings → Download the Latest Version** (or *Relay → Check
+for Updates…*) fetches and installs it in one click — no need to come back here.
+(Powered by Sparkle; updates are verified by signature.)
 
 ## Compatibility
 
