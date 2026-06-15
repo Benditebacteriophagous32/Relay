@@ -1,0 +1,51 @@
+name: Relay
+options:
+  bundleIdPrefix: com.hatim
+  # Ventura floor so 2017-era Intel Macs can run Relay. Newer features (Liquid
+  # Glass on 26, Translation/scroll on 15) light up per-OS via #available — see
+  # Glass.swift and the gated call sites.
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    # IDE signing: automatic. Open Relay.xcodeproj in Xcode signed into your own Apple
+    # Developer account and set DEVELOPMENT_TEAM below to your team id; Xcode then signs
+    # with your Apple Development cert (a stable identity, so notification permission
+    # persists across rebuilds). The notarized Developer ID release is produced by
+    # scripts/release.sh, which re-signs with explicit `codesign` (no profile needed).
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "ULHJAB7ZT3"
+    ENABLE_HARDENED_RUNTIME: YES
+    DEAD_CODE_STRIPPING: YES
+    # Apple-Silicon-first; universal so it also runs on Intel.
+    ARCHS: "$(ARCHS_STANDARD)"
+
+targets:
+  # The native SwiftUI client (Liquid Glass), driven by the Go relay-helper
+  # backend. Public target/product name is "Relay"; the source folder stays
+  # RelayNative/ (no file moves needed).
+  Relay:
+    type: application
+    platform: macOS
+    sources:
+      - path: RelayNative
+    settings:
+      base:
+        PRODUCT_NAME: Relay
+        PRODUCT_BUNDLE_IDENTIFIER: com.hatim.relay
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: NO
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Relay needs the microphone to record voice notes."
+        CODE_SIGN_ENTITLEMENTS: RelayNative/RelayNative.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_APP_SANDBOX: NO
+        COMBINE_HIDPI_IMAGES: YES
+        OTHER_LDFLAGS: "$(inherited) -lsqlite3"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
