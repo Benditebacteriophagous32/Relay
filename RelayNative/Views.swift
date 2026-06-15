@@ -383,7 +383,11 @@ struct ThreadView: View {
     @FocusState private var chatSearchFocused: Bool
 
     private var messages: [Message] { store.messagesByThread[thread.id] ?? [] }
-    private var rows: [ChatRow] { ChatRow.build(messages) }
+    // Memoized row model. Rebuilt ONLY when the thread's messages actually change (via the
+    // store's cheap revision signal) — not on every unrelated re-render (hover, typing,
+    // presence). Recomputing this over the whole array each render was the long-chat stutter.
+    @State private var rows: [ChatRow] = []
+    private func rebuildRows() { rows = ChatRow.build(messages) }
 
     // Receipts only on my TRAILING block of messages (the ones after their last message).
     // Once they reply, that reply already implies "seen", so older blocks show nothing.
@@ -464,6 +468,7 @@ struct ThreadView: View {
 
     // Scroll to the latest message and clear the away/unread state.
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        if !store.atLiveEdge.contains(thread.id) { store.reloadWindow(thread.id) }
         withAnimation(RelayStore.sendSpring) { proxy.scrollTo("bottomSpacer", anchor: .bottom) }
         atBottom = true
         newWhileAway = 0
@@ -549,7 +554,16 @@ struct ThreadView: View {
                     }
                     // Clearance below the last message so it rests ABOVE the floating
                     // composer (we scroll to this, not the message, so it never hides behind it).
+                    // Reaching the bottom of a slid-up window reloads the live (latest) window.
                     Color.clear.frame(height: 86).id("bottomSpacer")
+                        .onAppear {
+                            if !store.atLiveEdge.contains(thread.id) {
+                                store.reloadWindow(thread.id)
+                                DispatchQueue.main.async {
+                                    withAnimation(.none) { proxy.scrollTo("bottomSpacer", anchor: .bottom) }
+                                }
+                            }
+                        }
                 }
                 // Only a new bottom message (last id changes) animates its insertion;
                 // prepending older history (last id unchanged) stays still. Same spring as
@@ -621,8 +635,11 @@ struct ThreadView: View {
         }
         .onAppear {
             draft = store.draftsByThread[thread.id] ?? ""
+            rebuildRows()     // build the row model once for this thread
             appeared = true   // kick off the entrance cascade
         }
+        // Rebuild rows only when messages truly change (O(1) signal) — not on every render.
+        .onChangeCompat(of: store.messagesRevision) { _, _ in rebuildRows() }
         .onChangeCompat(of: draft) { _, v in if editing == nil { store.updateDraft(v, for: thread.id) } }
         .background(ConversationBackground(wallpaper: store.wallpaper(for: thread.id)).ignoresSafeArea())
         // Drag any file onto the conversation to send it.

@@ -54,8 +54,8 @@ targets:
         # Sparkle auto-update: signed appcast on GitHub Releases.
         SUFeedURL: "https://github.com/hatimhtm/Relay/releases/latest/download/appcast.xml"
         SUPublicEDKey: "WC5lwvOF89DNNoaqkTAcEXpmVGgOsjNATYKj17s90aY="
-        SUEnableAutomaticChecks: true
-        SUScheduledCheckInterval: 86400
+        # No background checks — updates happen only when the user clicks the button.
+        SUEnableAutomaticChecks: false
     settings:
       base:
         PRODUCT_NAME: Relay

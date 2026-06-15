@@ -1,11 +1,10 @@
 import SwiftUI
 import Sparkle
 
-// In-app automatic updates via Sparkle. On launch the app begins scheduled background
-// checks against a signed appcast on GitHub Releases; when a newer build exists the
-// user gets Sparkle's native "Update" prompt (download → install → relaunch) without
-// ever visiting GitHub. The "Check for Updates…" menu item and the Settings button
-// trigger the same flow on demand.
+// In-app updates via Sparkle — MANUAL only (no background checks; SUEnableAutomaticChecks
+// is false in Info.plist). When the user clicks "Download the Latest Version" (Settings)
+// or "Check for Updates…" (menu), Sparkle checks the signed appcast on GitHub Releases and,
+// if a newer build exists, offers a one-click download → install → relaunch — no GitHub trip.
 
 @MainActor
 final class UpdaterModel: ObservableObject {

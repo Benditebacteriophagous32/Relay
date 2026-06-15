@@ -82,8 +82,8 @@ private struct GeneralSettings: View {
             Toggle("Press Return to send (Shift+Return for a new line)", isOn: $enterToSend)
             Section("Updates") {
                 LabeledContent("Version", value: Self.versionString)
-                Button("Check for Updates…") { UpdaterModel.shared.checkForUpdates() }
-                Text("Relay updates itself automatically. You can also check manually here.")
+                Button("Download the Latest Version") { UpdaterModel.shared.checkForUpdates() }
+                Text("Relay checks for a newer version when you click — it never updates on its own. If one's available you'll be offered a one-click install.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

@@ -147,7 +147,15 @@ final class RelayStore: ObservableObject {
 
     @Published var threads: [ChatThread] = []
     @Published var contacts: [String: Contact] = [:]
-    @Published var messagesByThread: [String: [Message]] = [:]
+    // The loaded message window per thread. Bumping `messagesRevision` on every change gives
+    // views a cheap O(1) signal to rebuild their row model only when messages actually change
+    // (not on every unrelated re-render like hover/typing/presence — that was the long-chat
+    // stutter). The window is kept short and slides as you scroll (see windowSize/maxLoaded).
+    @Published var messagesByThread: [String: [Message]] = [:] { didSet { messagesRevision &+= 1 } }
+    @Published private(set) var messagesRevision = 0
+    @Published var atLiveEdge: Set<String> = []   // window currently includes the newest message
+    private let windowSize = 30                    // messages loaded when opening / at the bottom
+    private let maxLoaded = 90                      // hard cap on a thread's in-memory window
     @Published var participantsByThread: [String: Set<String>] = [:]
     @Published var adminsByThread: [String: Set<String>] = [:]      // thread → admin contact ids
     @Published var selfID: String = ""
@@ -468,12 +476,15 @@ final class RelayStore: ObservableObject {
         // Messages always come from the database now — but only the most recent slice of each
         // thread, so a huge history never floods memory or the CPU. Older messages page in on
         // demand when the user scrolls up (see loadEarlier).
-        messagesByThread = db.recentByThread(perThread: 40)
+        messagesByThread = db.recentByThread(perThread: windowSize)
+        atLiveEdge = Set(messagesByThread.keys)   // every freshly loaded window holds the latest
     }
 
-    /// Reset a thread back to just its recent window (after in-chat search loaded older context).
+    /// Reset a thread back to just its recent window (after scrolling up paged older messages in,
+    /// or in-chat search loaded older context). Brings the view back to the live edge.
     func reloadWindow(_ thread: String) {
-        messagesByThread[thread] = db.recentMessages(thread: thread, limit: 40)
+        messagesByThread[thread] = db.recentMessages(thread: thread, limit: windowSize)
+        atLiveEdge.insert(thread)
     }
 
     /// A thread's complete history straight from the DB (used by export — never windowed).
@@ -535,6 +546,10 @@ final class RelayStore: ObservableObject {
         var msg = Message(id: localID, thread: thread,
                           sender: selfID, text: t, ts: now, system: false)
         if let r = replyTo { msg.replyToId = r.id; msg.replyToText = r.text; msg.replyToSender = r.sender }
+        // Sending snaps the view to the bottom, so make sure the window is at the live edge
+        // first (it might be slid up from scrolling) — otherwise the bubble lands in a gap.
+        if !atLiveEdge.contains(thread) { reloadWindow(thread) }
+        atLiveEdge.insert(thread)
         withAnimation(Self.sendSpring) {
             messagesByThread[thread, default: []].append(msg)
         }
@@ -557,12 +572,19 @@ final class RelayStore: ObservableObject {
             // Nothing yet — can't anchor a history request without a reference message.
             return
         }
-        let older = db.earlier(thread: threadID, beforeTs: oldest.ts, limit: 40)
+        let older = db.earlier(thread: threadID, beforeTs: oldest.ts, limit: windowSize)
         if !older.isEmpty {
             var arr = messagesByThread[threadID] ?? []
             let have = Set(arr.map(\.id))
             arr.insert(contentsOf: older.filter { !have.contains($0.id) }, at: 0)
             arr.sort { $0.ts < $1.ts }
+            // Keep the window short: once it exceeds the cap, drop the newest messages so the
+            // window slides UP. The view is no longer at the live edge — scrolling back to the
+            // bottom reloads the recent window (see ThreadView's bottom sentinel).
+            if arr.count > maxLoaded {
+                arr.removeLast(arr.count - maxLoaded)
+                atLiveEdge.remove(threadID)
+            }
             messagesByThread[threadID] = arr
             return
         }
@@ -586,12 +608,13 @@ final class RelayStore: ObservableObject {
     func focusMessage(_ m: Message) {
         let loaded = messagesByThread[m.thread]?.contains { $0.id == m.id } ?? false
         if !loaded {
+            // Replace the window with a bounded context around the hit (keeps memory small);
+            // it's no longer at the live edge, so returning to the bottom reloads the latest.
             let ctx = db.contextAround(thread: m.thread, ts: m.ts)
-            var arr = messagesByThread[m.thread] ?? []
-            let have = Set(arr.map(\.id))
-            arr.append(contentsOf: ctx.filter { !have.contains($0.id) })
-            arr.sort { $0.ts < $1.ts }
-            messagesByThread[m.thread] = arr
+            if !ctx.isEmpty {
+                messagesByThread[m.thread] = ctx
+                atLiveEdge.remove(m.thread)
+            }
         }
         scrollTarget = m.id
         withAnimation(.easeInOut(duration: 0.2)) { searchHighlight = m.id }
@@ -664,6 +687,8 @@ final class RelayStore: ObservableObject {
                           sender: selfID, text: cap.isEmpty ? placeholder : cap, ts: now, system: false)
         msg.kind = kind
         msg.mediaPath = path
+        if !atLiveEdge.contains(thread) { reloadWindow(thread) }   // snap to bottom before adding
+        atLiveEdge.insert(thread)
         withAnimation(Self.sendSpring) {
             messagesByThread[thread, default: []].append(msg)
         }
@@ -1340,15 +1365,22 @@ final class RelayStore: ObservableObject {
             var arr = messagesByThread[thread] ?? []
             let isNew = !arr.contains(msg)
             if isNew {
-                arr.append(msg)
-                arr.sort { $0.ts < $1.ts }
-                withAnimation(Self.sendSpring) {
-                    messagesByThread[thread] = arr
-                }
-                db.upsert(msg)
-                // Keep an auto-translated conversation translated as new messages land.
-                if autoTranslate.contains(thread), !msg.system, !msg.hasMedia {
-                    requestTranslation(msg.id, msg.text)
+                db.upsert(msg)   // always persist
+                // Only grow the in-memory window if it's showing the latest messages. If the
+                // user has scrolled up (window slid away from the live edge), skip the append
+                // so we don't create a gap — the DB has it, and returning to the bottom reloads.
+                let live = atLiveEdge.contains(thread) || messagesByThread[thread] == nil
+                if live {
+                    arr.append(msg)
+                    arr.sort { $0.ts < $1.ts }
+                    withAnimation(Self.sendSpring) {
+                        messagesByThread[thread] = arr
+                    }
+                    atLiveEdge.insert(thread)
+                    // Keep an auto-translated conversation translated as new messages land.
+                    if autoTranslate.contains(thread), !msg.system, !msg.hasMedia {
+                        requestTranslation(msg.id, msg.text)
+                    }
                 }
             }
             // A genuinely new incoming message: if we're looking at this thread, auto-mark it
