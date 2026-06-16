@@ -17,6 +17,7 @@ struct RelayApp: App {
                 .background(GlassWindowBackground().ignoresSafeArea())  // glass fills under the title bar too
                 .task { store.start() }
                 .task { lock.lockAtLaunchIfNeeded() }
+                .task { await pollForUpdates() }
                 .frame(minWidth: 820, minHeight: 560)
                 // The lock screen covers everything (including the login view) while locked.
                 .overlay { if lock.isLocked { LockView(lock: lock) } }
@@ -39,6 +40,17 @@ struct RelayApp: App {
             MenuBarLabel(store: store)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    /// Silently probe the appcast a few seconds after launch, then every 6 hours, so the
+    /// "Update available" badge stays current. This NEVER installs anything — it only flips
+    /// the badge; the user still clicks to install. (Install stays manual by design.)
+    private func pollForUpdates() async {
+        try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)   // let the app settle first
+        while !Task.isCancelled {
+            updater.checkSilently()
+            try? await Task.sleep(nanoseconds: 6 * 60 * 60 * 1_000_000_000)
+        }
     }
 }
 

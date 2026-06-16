@@ -198,6 +198,31 @@ final class MessageStore {
         return sqlite3_step(st) == SQLITE_ROW
     }
 
+    /// Every local file path still referenced by a message. The housekeeper uses this so it
+    /// never deletes a scratch/media file that some message in history still points at.
+    func referencedMediaPaths() -> Set<String> {
+        var out = Set<String>()
+        guard let st = prepare("SELECT DISTINCT mediaPath FROM messages WHERE mediaPath IS NOT NULL;") else { return out }
+        defer { sqlite3_finalize(st) }
+        while sqlite3_step(st) == SQLITE_ROW {
+            if let c = sqlite3_column_text(st, 0) { out.insert(String(cString: c)) }
+        }
+        return out
+    }
+
+    /// Repoint media file paths in bulk (old path → new path). Used to migrate sent
+    /// attachments out of the throwaway temp dir into durable storage.
+    func remapMediaPaths(_ map: [String: String]) {
+        guard !map.isEmpty, let st = prepare("UPDATE messages SET mediaPath=? WHERE mediaPath=?;") else { return }
+        defer { sqlite3_finalize(st) }
+        for (old, new) in map {
+            sqlite3_bind_text(st, 1, new, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(st, 2, old, -1, SQLITE_TRANSIENT)
+            _ = sqlite3_step(st)
+            sqlite3_reset(st)
+        }
+    }
+
     /// Fetch specific messages by id (used by Saved messages, which may not be in any window).
     func byIDs(_ ids: [String]) -> [Message] {
         guard !ids.isEmpty else { return [] }

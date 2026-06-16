@@ -36,6 +36,7 @@ struct EdgeBlur: View {
 
 struct SidebarView: View {
     @EnvironmentObject var store: RelayStore
+    @ObservedObject private var updater = UpdaterModel.shared
     @Binding var selected: String?
     @State private var query = ""
     @State private var showNewGroup = false
@@ -74,6 +75,23 @@ struct SidebarView: View {
                 HStack(spacing: 10) {
                     Text("Relay").font(.title2.weight(.bold))
                     Spacer()
+                    // A new version is out — one click installs it (shows the changelog first).
+                    // Only appears when the silent probe finds a newer build.
+                    if updater.updateAvailable {
+                        Button { updater.checkForUpdates() } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.down.circle.fill").font(.system(size: 11, weight: .bold))
+                                Text("Update").font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(Capsule().fill(Color.accentColor))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help(updater.latestVersion.map { "Relay \($0) is available — click to install" } ?? "A new version is available — click to install")
+                        .transition(.scale.combined(with: .opacity))
+                    }
                     Button { showSaved = true } label: {
                         Image(systemName: "bookmark").font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.secondary)
@@ -91,6 +109,7 @@ struct SidebarView: View {
                     Circle().fill(store.connected ? .green : .orange)
                         .frame(width: 8, height: 8)
                 }
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: updater.updateAvailable)
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(.secondary)
                     TextField("Search messages", text: $query)

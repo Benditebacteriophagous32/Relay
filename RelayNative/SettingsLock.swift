@@ -76,14 +76,21 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @AppStorage("showSeenIndicators") private var showSeen = true
     @AppStorage("enterToSend") private var enterToSend = true
+    @ObservedObject private var updater = UpdaterModel.shared
     var body: some View {
         Form {
             Toggle("Show seen / delivery indicators in the sidebar", isOn: $showSeen)
             Toggle("Press Return to send (Shift+Return for a new line)", isOn: $enterToSend)
             Section("Updates") {
                 LabeledContent("Version", value: Self.versionString)
-                Button("Download the Latest Version") { UpdaterModel.shared.checkForUpdates() }
-                Text("Relay checks for a newer version when you click — it never updates on its own. If one's available you'll be offered a one-click install.")
+                Button(updater.updateAvailable
+                       ? "Update to \(updater.latestVersion ?? "the latest version")"
+                       : "Download the Latest Version") { UpdaterModel.shared.checkForUpdates() }
+                if updater.updateAvailable {
+                    Label("A new version is available.", systemImage: "arrow.down.circle.fill")
+                        .font(.caption).foregroundStyle(Color.accentColor)
+                }
+                Text("Relay quietly checks for a newer version and flags one here (and in the sidebar) when it's out — but it never installs on its own. You choose when to update; you'll see what's new and install in one click.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

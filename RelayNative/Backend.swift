@@ -351,6 +351,26 @@ final class RelayStore: ObservableObject {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("cache.json")
     }()
+
+    // Durable cache for media (incoming decrypted attachments + a copy of what we send), so
+    // attachments survive the OS purging the temp dir.
+    private let mediaDir: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Relay/media", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// Copy an about-to-be-sent attachment out of the throwaway temp dir into our durable
+    /// media cache and return the durable URL (falls back to the original on any failure, so
+    /// a send never breaks just because the copy didn't).
+    private func persistOutgoingMedia(_ src: URL) -> URL {
+        // Already living in our media cache (e.g. re-send) — nothing to copy.
+        if src.path.hasPrefix(mediaDir.path) { return src }
+        let dest = mediaDir.appendingPathComponent("out-\(UUID().uuidString)-\(src.lastPathComponent)")
+        do { try FileManager.default.copyItem(at: src, to: dest); return dest }
+        catch { return src }
+    }
     // Lightweight metadata cache. Messages used to live here too; they now live in
     // SQLite (`messages` is kept only to migrate the old file, then dropped).
     private struct Cache: Codable {
@@ -376,6 +396,7 @@ final class RelayStore: ObservableObject {
         }
         loadCache()   // restore conversations so they survive restarts
         loadDeferredState()   // scheduled sends + snoozes
+        housekeeping()   // clean up after ourselves so nothing piles up on disk
         let center = UNUserNotificationCenter.current()
         center.delegate = NotificationDelegate.shared
         // A "Reply" text field right on the banner — answer without opening the app.
@@ -456,6 +477,92 @@ final class RelayStore: ObservableObject {
         content.userInfo = ["threadID": threadID]
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    /// Tidy up after ourselves on launch so nothing accumulates on disk over time. Every step
+    /// is best-effort and runs off the main thread. Note: Sparkle already deletes its own
+    /// update download right after installing (verified: its caches sit empty between runs) —
+    /// the sweep below is just belt-and-braces for a download an interrupted install left behind.
+    private func housekeeping() {
+        rescueTempMedia()   // save any sent attachments still stranded in the temp dir
+        let inUse = db.referencedMediaPaths()   // never delete a file history still points at
+        DispatchQueue.global(qos: .utility).async {
+            let fm = FileManager.default
+            let now = Date()
+            func age(_ u: URL) -> TimeInterval {
+                let d = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+                return d.map { now.timeIntervalSince($0) } ?? .greatestFiniteMagnitude
+            }
+
+            // 1) Throwaway scratch files we create when sending (voice notes / pasted images /
+            //    GIFs). Once sent they're copied into the durable media cache, so the temp copy
+            //    is disposable — drop any that are no longer referenced and older than an hour
+            //    (well past any in-flight upload).
+            if let items = try? fm.contentsOfDirectory(at: fm.temporaryDirectory,
+                                                       includingPropertiesForKeys: [.contentModificationDateKey]) {
+                for u in items where u.lastPathComponent.hasPrefix("relay-") {
+                    if !inUse.contains(u.path), age(u) > 3600 { try? fm.removeItem(at: u) }
+                }
+            }
+
+            // 2) The one-time pre-migration cache backup. Once the SQLite DB holds the history
+            //    it's done its job — remove it after a week so it doesn't sit forever.
+            let bak = self.cacheURL.deletingPathExtension().appendingPathExtension("premigration.bak")
+            if fm.fileExists(atPath: bak.path), age(bak) > 7 * 24 * 3600 { try? fm.removeItem(at: bak) }
+
+            // 3) Belt-and-braces: sweep any stale leftovers from Sparkle's update caches (an
+            //    interrupted install can strand an archive). Only touch files older than a day,
+            //    so a download in progress is never disturbed.
+            let bundleID = Bundle.main.bundleIdentifier ?? "com.hatim.relay"
+            let sparkle = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("\(bundleID)/org.sparkle-project.Sparkle", isDirectory: true)
+            for sub in ["PersistentDownloads", "Installation", "Launcher"] {
+                let d = sparkle.appendingPathComponent(sub, isDirectory: true)
+                if let items = try? fm.contentsOfDirectory(at: d, includingPropertiesForKeys: [.contentModificationDateKey]) {
+                    for u in items where age(u) > 24 * 3600 { try? fm.removeItem(at: u) }
+                }
+            }
+
+            // 4) Orphaned media: durable attachments no longer referenced by any message (e.g.
+            //    an unsent message), older than a day. Keeps the media cache from growing without
+            //    bound while never touching anything still shown in a chat.
+            if let items = try? fm.contentsOfDirectory(at: self.mediaDir,
+                                                       includingPropertiesForKeys: [.contentModificationDateKey]) {
+                for u in items where !inUse.contains(u.path) && age(u) > 24 * 3600 {
+                    try? fm.removeItem(at: u)
+                }
+            }
+        }
+    }
+
+    /// One-time rescue: earlier versions stored a SENT attachment's path as its temp-dir file,
+    /// which macOS purges — so those images would silently disappear from history. Copy any
+    /// still-present temp file into the durable media cache and repoint the message to it.
+    /// Idempotent: once repointed, the temp path is no longer referenced, so this no-ops.
+    private func rescueTempMedia() {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.path
+        let stranded = db.referencedMediaPaths().filter { $0.hasPrefix(tmp) && fm.fileExists(atPath: $0) }
+        guard !stranded.isEmpty else { return }
+        var remap: [String: String] = [:]
+        for old in stranded {
+            let src = URL(fileURLWithPath: old)
+            let dest = mediaDir.appendingPathComponent("rescued-\(src.lastPathComponent)")
+            if !fm.fileExists(atPath: dest.path) {
+                do { try fm.copyItem(at: src, to: dest) } catch { continue }
+            }
+            remap[old] = dest.path
+        }
+        guard !remap.isEmpty else { return }
+        db.remapMediaPaths(remap)
+        // Update any already-loaded windows so the live view uses the durable copy too.
+        for (thread, msgs) in messagesByThread {
+            var arr = msgs, changed = false
+            for i in arr.indices where arr[i].mediaPath != nil {
+                if let np = remap[arr[i].mediaPath!] { arr[i].mediaPath = np; changed = true }
+            }
+            if changed { messagesByThread[thread] = arr }
+        }
     }
 
     /// Dock badge = number of conversations with unread messages (muted ones excluded).
@@ -679,7 +786,11 @@ final class RelayStore: ObservableObject {
     /// Send a picture (optionally with a caption). Shown immediately, since encrypted
     /// sends aren't echoed back by the server.
     func sendMedia(thread: String, fileURL: URL, caption: String = "") {
-        let path = fileURL.path
+        // Keep a durable copy in our media cache. Pasted images / GIFs / voice notes are
+        // written to the temp dir, which macOS purges — so a sent attachment would otherwise
+        // go missing from history. Persisting also lets the housekeeper safely delete the
+        // temp scratch file (it's no longer referenced once we point at the durable copy).
+        let path = persistOutgoingMedia(fileURL).path
         let cap = caption.trimmingCharacters(in: .whitespacesAndNewlines)
         var cmd: [String: Any] = ["cmd": "sendMedia", "thread": thread, "path": path]
         if !cap.isEmpty { cmd["caption"] = cap }
