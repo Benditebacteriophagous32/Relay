@@ -1190,6 +1190,10 @@ private struct MessageMedia: View {
                 else if phase.error != nil { failed }
                 else { loading }
             }
+        } else if message.mediaPath != nil {
+            // The local file is gone (e.g. an old send whose temp copy macOS purged) and
+            // there's no URL to re-fetch — show a tidy placeholder, not an endless spinner.
+            failed
         } else {
             loading   // encrypted image still downloading
         }

@@ -4,6 +4,9 @@ All notable changes to Relay, newest first. The current version's bullet list is
 shown right inside the in-app update prompt ("A new version is available — would
 you like to install it?"), so you can see what's new before updating.
 
+## 1.0.5
+- A photo that's no longer available now shows a clean placeholder instead of spinning forever.
+
 ## 1.0.4
 - An "Update available" badge now appears in the app (in the sidebar and in Settings) the moment a new version is out, so you never have to go check — installing stays one click, on your terms.
 - Relay now cleans up after itself: leftover temporary files, stale update downloads, and old backups are tidied automatically so updates and caches never pile up and fill your storage.
