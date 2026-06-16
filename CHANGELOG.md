@@ -4,6 +4,9 @@ All notable changes to Relay, newest first. The current version's bullet list is
 shown right inside the in-app update prompt ("A new version is available — would
 you like to install it?"), so you can see what's new before updating.
 
+## 1.0.6
+- Hardened session security: any leftover plaintext copy of your login is now deleted automatically once it's safely in the Keychain, so your session never lingers in cleartext on disk.
+
 ## 1.0.5
 - A photo that's no longer available now shows a clean placeholder instead of spinning forever.
 

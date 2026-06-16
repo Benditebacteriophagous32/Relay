@@ -49,22 +49,43 @@ enum CookieVault {
         return s
     }
 
-    /// Best available session: Keychain first, then migrate in a legacy Desktop export
-    /// or self-healing backup. Returns nil only if there's genuinely no session anywhere.
-    static func resolve() -> String? {
-        if let s = load() { return s }
+    /// The plaintext session files we know about (legacy imports / self-healing backups).
+    /// These hold account-password-equivalent cookies, so they must never linger in cleartext.
+    private static var plaintextSessionFiles: [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let legacy = [
+        return [
             home.appendingPathComponent("Desktop/relay-cookies.txt"),
             home.appendingPathComponent("Library/Application Support/Relay/session-cookies.backup.txt"),
         ]
-        for url in legacy {
+    }
+
+    /// Best available session: Keychain first, then migrate in a legacy Desktop export or
+    /// self-healing backup. After migrating, the plaintext source is DELETED — the session is
+    /// account-password-equivalent and must live only in the Keychain. Returns nil only if
+    /// there's genuinely no session anywhere.
+    static func resolve() -> String? {
+        if let s = load() { return s }
+        for url in plaintextSessionFiles {
             if let raw = try? String(contentsOf: url, encoding: .utf8) {
                 let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !s.isEmpty { save(s); return s }   // migrate into the Keychain
+                if !s.isEmpty {
+                    save(s)                                    // migrate into the Keychain…
+                    try? FileManager.default.removeItem(at: url)   // …then drop the cleartext copy
+                    return s
+                }
             }
         }
         return nil
+    }
+
+    /// Once the session is safely in the Keychain, remove any plaintext copies still on disk
+    /// (older builds migrated them in but never deleted the originals — one even sat
+    /// world-readable on the Desktop). Safe to call on every launch.
+    static func purgePlaintextBackups() {
+        guard load() != nil else { return }   // never delete an un-migrated import
+        for url in plaintextSessionFiles where FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }
 

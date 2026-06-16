@@ -489,6 +489,10 @@ final class RelayStore: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             let fm = FileManager.default
             let now = Date()
+
+            // 0) Security: never let the session sit in cleartext. Once it's in the Keychain,
+            //    remove any leftover plaintext cookie files (older builds didn't clean these).
+            CookieVault.purgePlaintextBackups()
             func age(_ u: URL) -> TimeInterval {
                 let d = (try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
                 return d.map { now.timeIntervalSince($0) } ?? .greatestFiniteMagnitude
