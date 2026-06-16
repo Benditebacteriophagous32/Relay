@@ -639,7 +639,17 @@ struct ThreadView: View {
             appeared = true   // kick off the entrance cascade
         }
         // Rebuild rows only when messages truly change (O(1) signal) — not on every render.
-        .onChangeCompat(of: store.messagesRevision) { _, _ in rebuildRows() }
+        // An invisible id-swap (optimistic → real) rebuilds WITHOUT animation, so a freshly
+        // sent bubble doesn't glide in a second time when the send is acked.
+        .onChangeCompat(of: store.messagesRevision) { _, _ in
+            if store.silentSwap {
+                store.silentSwap = false
+                var tx = Transaction(); tx.disablesAnimations = true
+                withTransaction(tx) { rebuildRows() }
+            } else {
+                rebuildRows()
+            }
+        }
         .onChangeCompat(of: draft) { _, v in if editing == nil { store.updateDraft(v, for: thread.id) } }
         .background(ConversationBackground(wallpaper: store.wallpaper(for: thread.id)).ignoresSafeArea())
         // Drag any file onto the conversation to send it.
@@ -869,7 +879,11 @@ private struct Bubble: View {
     // Only ONE message shows its pill at a time (tracked in the store), so the affordance
     // can never bleed onto a neighbouring message. A grace delay bridges the gap between
     // the bubble and the floating pill so it never flickers while the cursor is on either.
-    private var showActions: Bool { store.hoverMessage == message.id }
+    // Stay visible while the emoji bar is open, even if the cursor briefly strays over a
+    // neighbouring row on its way to the floating bar — that stray used to steal the global
+    // hover and make the picker flicker shut. `picking` pins it open until you pick, toggle
+    // it closed, or leave for the (longer) grace below.
+    private var showActions: Bool { store.hoverMessage == message.id || picking }
 
     private func keepOpen() {
         hideWork?.cancel()
@@ -880,12 +894,15 @@ private struct Bubble: View {
     private func scheduleHide() {
         hideWork?.cancel()
         let id = message.id
+        // While actively picking a reaction, give a long grace so the bar doesn't vanish
+        // mid-travel as the cursor leaves the bubble to reach the floating emoji row.
+        let delay = picking ? 0.9 : 0.22
         let w = DispatchWorkItem {
             if store.hoverMessage == id { withAnimation(.smooth(duration: 0.16)) { store.hoverMessage = nil } }
-            picking = false
+            withAnimation(.smooth(duration: 0.16)) { picking = false }
         }
         hideWork = w
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: w)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: w)
     }
 
     // A real caption to show under a picture (vs. the bare "📷 Photo" placeholder).
@@ -927,7 +944,6 @@ private struct Bubble: View {
         }
         .contentShape(Rectangle())
         .onHover { h in if h { keepOpen() } else { scheduleHide() } }
-        .onChangeCompat(of: store.hoverMessage) { _, v in if v != message.id { picking = false } }
         // Double-click anywhere on the row to reply (Messenger-style), without opening menus.
         .onTapGesture(count: 2) { onReply() }
     }
@@ -975,17 +991,22 @@ private struct Bubble: View {
     // out of the bubble) as an overlay, so it never reflows the message.
     @ViewBuilder private var affordance: some View {
         if showActions {
-            VStack(alignment: isMine ? .leading : .trailing, spacing: 6) {
-                if picking { emojiRow }
-                pill
-            }
-            .fixedSize()
-            // Anchor the pill at the bubble's vertical center; the emoji row grows UPWARD
-            // from there so opening it never nudges the pill (centered, not bottom-stuck).
-            .alignmentGuide(VerticalAlignment.center) { d in d[.bottom] - 17 }
-            .offset(x: isMine ? -58 : 58)
-            .onHover { h in if h { keepOpen() } else { scheduleHide() } }
-            .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
+            // The PILL is the layout anchor (sized to itself, vertically centered on the
+            // bubble by the outer overlay). The wide emoji bar is an OVERLAY that floats just
+            // above the pill and grows toward the screen centre — rightward for received,
+            // leftward for mine — so it can never push the pill or bleed off the window edge
+            // (the old edge-anchored bar ran off the left wall on received messages).
+            pill
+                .overlay(alignment: isMine ? .bottomTrailing : .bottomLeading) {
+                    if picking {
+                        emojiRow
+                            .offset(y: -34)   // clear the pill + a small gap
+                            .onHover { h in if h { keepOpen() } else { scheduleHide() } }
+                    }
+                }
+                .offset(x: isMine ? -58 : 58)
+                .onHover { h in if h { keepOpen() } else { scheduleHide() } }
+                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
         }
     }
 

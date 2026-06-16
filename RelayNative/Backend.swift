@@ -153,6 +153,11 @@ final class RelayStore: ObservableObject {
     // stutter). The window is kept short and slides as you scroll (see windowSize/maxLoaded).
     @Published var messagesByThread: [String: [Message]] = [:] { didSet { messagesRevision &+= 1 } }
     @Published private(set) var messagesRevision = 0
+    // Set true immediately before an INVISIBLE in-place message swap (optimistic "local-…" id
+    // → the server's real id). The transcript consumes it to rebuild its rows WITHOUT replaying
+    // the entrance animation — otherwise the bubble glides in a second time when the send is
+    // acked, which reads as "I sent two messages".
+    var silentSwap = false
     @Published var atLiveEdge: Set<String> = []   // window currently includes the newest message
     private let windowSize = 30                    // messages loaded when opening / at the bottom
     private let maxLoaded = 90                      // hard cap on a thread's in-memory window
@@ -1320,6 +1325,7 @@ final class RelayStore: ObservableObject {
                                    replyToText: old.replyToText, replyToSender: old.replyToSender)
                 // Swap silently: the bubble is already on screen, so don't let the id change
                 // re-trigger its insert/remove transition (that would flash the message).
+                silentSwap = true                       // rebuild rows without re-animating
                 var tx = Transaction(); tx.disablesAnimations = true
                 withTransaction(tx) { messagesByThread[thread] = arr }
                 db.delete(id: tag); db.upsert(arr[idx])
@@ -1357,6 +1363,7 @@ final class RelayStore: ObservableObject {
                 var merged = msg
                 if merged.mediaPath == nil { merged.mediaPath = cur[li].mediaPath }
                 cur[li] = merged
+                silentSwap = true                       // rebuild rows without re-animating
                 var tx = Transaction(); tx.disablesAnimations = true
                 withTransaction(tx) { messagesByThread[thread] = cur }
                 db.delete(id: localID); db.upsert(merged)
