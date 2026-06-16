@@ -1370,7 +1370,11 @@ final class RelayStore: ObservableObject {
                 return
             }
             var arr = messagesByThread[thread] ?? []
-            let isNew = !arr.contains(msg)
+            // "New" means we've never stored this message — NOT merely that it's outside the
+            // short in-memory window (which only holds ~30 messages). Without the DB check, an
+            // old message the server replays on reconnect looks new on every launch and
+            // re-fires its notification — the stale "ghost" notification.
+            let isNew = !arr.contains(msg) && !db.exists(id: id)
             if isNew {
                 db.upsert(msg)   // always persist
                 // Only grow the in-memory window if it's showing the latest messages. If the

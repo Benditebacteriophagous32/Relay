@@ -188,6 +188,16 @@ final class MessageStore {
         }
     }
 
+    /// True if a message with this id is already in our local history (any thread). Used to
+    /// tell a genuinely-new live message from one the server replays on reconnect — the
+    /// in-memory window only holds ~30 messages, so a containment check there is not enough.
+    func exists(id: String) -> Bool {
+        guard let st = prepare("SELECT 1 FROM messages WHERE id=? LIMIT 1;") else { return false }
+        defer { sqlite3_finalize(st) }
+        sqlite3_bind_text(st, 1, id, -1, SQLITE_TRANSIENT)
+        return sqlite3_step(st) == SQLITE_ROW
+    }
+
     /// Fetch specific messages by id (used by Saved messages, which may not be in any window).
     func byIDs(_ ids: [String]) -> [Message] {
         guard !ids.isEmpty else { return [] }

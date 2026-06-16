@@ -73,6 +73,52 @@ if [ -n "${GENAPPCAST:-}" ] && [ -x "$GENAPPCAST" ]; then
   "$GENAPPCAST" --download-url-prefix "https://github.com/hatimhtm/Relay/releases/download/v$VERSION/" "$APPCAST_SRC"
   mv "$APPCAST_SRC/appcast.xml" "$APPCAST"
   rm -rf "$APPCAST_SRC"
+
+  # --- Embed this version's changelog as inline release notes ----------------
+  # Sparkle renders an item's <description> HTML in the update prompt. Pull the
+  # "## <VERSION>" section out of CHANGELOG.md, turn its bullets into an HTML
+  # list, and inject it — so users see exactly what's new before they install.
+  CHANGELOG="$ROOT/CHANGELOG.md"
+  if [ -f "$CHANGELOG" ]; then
+    # The raw bullets for this version (markdown), for the GitHub release notes.
+    NOTES_MD="$DIST/RELEASE_NOTES.md"
+    awk -v ver="$VERSION" '
+      $0 ~ ("^## +" ver "([ \t]|$)") { grab=1; next }
+      grab && /^## / { grab=0 }
+      grab { print }
+    ' "$CHANGELOG" | sed '/^[[:space:]]*$/d' > "$NOTES_MD"
+
+    if [ -s "$NOTES_MD" ]; then
+      # Build the HTML list (escape &, <, > so the CDATA stays valid).
+      NOTES_HTML="$DIST/relnotes.html"
+      {
+        echo "<h3 style=\"margin:0 0 8px;font:600 14px -apple-system\">What&rsquo;s new in Relay $VERSION</h3>"
+        echo "<ul style=\"margin:0;padding-left:20px;font:13px -apple-system;line-height:1.5\">"
+        sed -E 's/^[[:space:]]*[-*][[:space:]]+//' "$NOTES_MD" \
+          | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' \
+          | while IFS= read -r line; do [ -n "$line" ] && echo "  <li>$line</li>"; done
+        echo "</ul>"
+      } > "$NOTES_HTML"
+
+      # Inject right after the item's opening <item> tag (the channel has none).
+      TMP="$APPCAST.tmp"
+      awk -v notesfile="$NOTES_HTML" '
+        /<item>/ && !done {
+          print
+          print "            <description><![CDATA["
+          while ((getline l < notesfile) > 0) print l
+          print "            ]]></description>"
+          done=1
+          next
+        }
+        { print }
+      ' "$APPCAST" > "$TMP" && mv "$TMP" "$APPCAST"
+      rm -f "$NOTES_HTML"
+      echo "→ Embedded the v$VERSION changelog into the appcast (shown in the update prompt)."
+    else
+      echo "⚠ No '## $VERSION' section in CHANGELOG.md — update prompt will have no notes." >&2
+    fi
+  fi
 else
   echo "⚠ generate_appcast not found — skipping appcast (auto-update won't update without it)." >&2
   echo "  Download the Sparkle tools into .sparkle-tools/ or set GENAPPCAST — see RELEASE.md." >&2
@@ -86,9 +132,11 @@ echo "  Zip (Sparkle update):  $ZIP"
 [ -n "$APPCAST" ] && echo "  Appcast (auto-update): $APPCAST"
 echo
 echo "Publish the release with the GitHub CLI (tag MUST be v$VERSION to match the appcast URLs):"
+NOTES_ARG="--notes \"…\""
+[ -f "$DIST/RELEASE_NOTES.md" ] && NOTES_ARG="--notes-file \"$DIST/RELEASE_NOTES.md\""
 if [ -n "$APPCAST" ]; then
-  echo "  gh release create v$VERSION \"$DMG\" \"$ZIP\" \"$APPCAST\" --title \"Relay v$VERSION\" --notes \"…\""
+  echo "  gh release create v$VERSION \"$DMG\" \"$ZIP\" \"$APPCAST\" --title \"Relay v$VERSION\" $NOTES_ARG"
 else
-  echo "  gh release create v$VERSION \"$DMG\" \"$ZIP\" --title \"Relay v$VERSION\" --notes \"…\""
+  echo "  gh release create v$VERSION \"$DMG\" \"$ZIP\" --title \"Relay v$VERSION\" $NOTES_ARG"
 fi
 echo "Bump MARKETING_VERSION + CURRENT_PROJECT_VERSION in project.yml before each release."
